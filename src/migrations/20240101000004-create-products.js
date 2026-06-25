@@ -1,0 +1,40 @@
+'use strict';
+module.exports = {
+  async up(queryInterface, Sequelize) {
+    await queryInterface.createTable('Products', {
+      id: { type: Sequelize.INTEGER, autoIncrement: true, primaryKey: true },
+      name: { type: Sequelize.STRING, allowNull: false },
+      slug: { type: Sequelize.STRING, allowNull: false, unique: true },
+      description: { type: Sequelize.TEXT },
+      shortDescription: { type: Sequelize.STRING },
+      sku: { type: Sequelize.STRING, unique: true },
+      price: { type: Sequelize.DECIMAL(10, 2), allowNull: false },
+      comparePrice: { type: Sequelize.DECIMAL(10, 2) },
+      costPrice: { type: Sequelize.DECIMAL(10, 2) },
+      stock: { type: Sequelize.INTEGER, defaultValue: 0 },
+      lowStockThreshold: { type: Sequelize.INTEGER, defaultValue: 5 },
+      categoryId: { type: Sequelize.INTEGER, references: { model: 'Categories', key: 'id' }, onDelete: 'SET NULL' },
+      brandId: { type: Sequelize.INTEGER, references: { model: 'Brands', key: 'id' }, onDelete: 'SET NULL' },
+      condition: { type: Sequelize.ENUM('new', 'refurbished', 'used'), defaultValue: 'new' },
+      status: { type: Sequelize.ENUM('active', 'inactive', 'draft'), defaultValue: 'active' },
+      isFeatured: { type: Sequelize.BOOLEAN, defaultValue: false },
+      isFlashSale: { type: Sequelize.BOOLEAN, defaultValue: false },
+      flashSalePrice: { type: Sequelize.DECIMAL(10, 2) },
+      flashSaleEnds: { type: Sequelize.DATE },
+      tags: { type: Sequelize.ARRAY(Sequelize.STRING), defaultValue: [] },
+      weight: { type: Sequelize.FLOAT },
+      thumbnail: { type: Sequelize.STRING },
+      avgRating: { type: Sequelize.FLOAT, defaultValue: 0 },
+      totalReviews: { type: Sequelize.INTEGER, defaultValue: 0 },
+      totalSold: { type: Sequelize.INTEGER, defaultValue: 0 },
+      viewCount: { type: Sequelize.INTEGER, defaultValue: 0 },
+      gstPercent: { type: Sequelize.FLOAT, defaultValue: 18 },
+      metaTitle: { type: Sequelize.STRING },
+      metaDescription: { type: Sequelize.TEXT },
+      warrantyMonths: { type: Sequelize.INTEGER, defaultValue: 12 },
+      createdAt: { type: Sequelize.DATE, allowNull: false },
+      updatedAt: { type: Sequelize.DATE, allowNull: false },
+    });
+  },
+  async down(queryInterface) { await queryInterface.dropTable('Products'); }
+};
