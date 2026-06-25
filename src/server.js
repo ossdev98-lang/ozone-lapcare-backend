@@ -15,7 +15,7 @@ const db = require('./models');
 const app = express();
 
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
-app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' || 'http://ozonelapcare.com', credentials: true }));
+app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' || 'https://ozonelapcare.com', credentials: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(compression());
 app.use(morgan('dev'));
