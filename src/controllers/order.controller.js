@@ -2,6 +2,7 @@ const { Order, OrderItem, Cart, CartItem, Product, Address, Coupon, User, Notifi
 const { success, error, paginate } = require('../utils/response');
 const { generateOrderNumber } = require('../utils/helpers');
 const { sendEmail, emailTemplates } = require('../utils/email');
+const { sendOrderPlaced, sendOrderStatus, sendPaymentConfirmed } = require('../utils/whatsapp');
 const crypto = require('crypto');
 
 const toNumber = (value) => {
@@ -59,14 +60,15 @@ exports.createOrder = async (req, res) => {
       const rzp = new Razorpay({ key_id: process.env.RAZORPAY_KEY_ID, key_secret: process.env.RAZORPAY_KEY_SECRET });
       const rzpOrder = await rzp.orders.create({ amount: Math.round(total * 100), currency: 'INR', receipt: `order_${order.id}` });
       await order.update({ razorpayOrderId: rzpOrder.id });
-      // Notifications & email
-      await Notification.create({ userId: req.user.id, title: 'Order Placed', message: `Your order #${order.orderNumber} has been placed`, type: 'order', link: `/orders/${order.id}` });
-      await sendEmail({ to: req.user.email, subject: `Order Confirmed #${order.orderNumber}`, html: emailTemplates.orderConfirmation(req.user.name, order.orderNumber, total.toFixed(2)) });
-      return success(res, { ...order.toJSON(), razorpayOrderId: rzpOrder.id, razorpayAmount: rzpOrder.amount }, 'Order created', 201);
-    }
-    // Notifications & email
+    // Notifications, email & WhatsApp
     await Notification.create({ userId: req.user.id, title: 'Order Placed', message: `Your order #${order.orderNumber} has been placed`, type: 'order', link: `/orders/${order.id}` });
     await sendEmail({ to: req.user.email, subject: `Order Confirmed #${order.orderNumber}`, html: emailTemplates.orderConfirmation(req.user.name, order.orderNumber, total.toFixed(2)) });
+      return success(res, { ...order.toJSON(), razorpayOrderId: rzpOrder.id, razorpayAmount: rzpOrder.amount }, 'Order created', 201);
+    }
+    // Notifications, email & WhatsApp
+    await Notification.create({ userId: req.user.id, title: 'Order Placed', message: `Your order #${order.orderNumber} has been placed`, type: 'order', link: `/orders/${order.id}` });
+    await sendEmail({ to: req.user.email, subject: `Order Confirmed #${order.orderNumber}`, html: emailTemplates.orderConfirmation(req.user.name, order.orderNumber, total.toFixed(2)) });
+    sendOrderPlaced(req.user.phone, req.user.name, order.orderNumber, total.toFixed(2));
     return success(res, order, 'Order placed successfully', 201);
   } catch (err) {
     await t.rollback();
@@ -121,10 +123,11 @@ exports.getAllOrders = async (req, res) => {
 
 exports.updateOrderStatus = async (req, res) => {
   try {
-    const order = await Order.findByPk(req.params.id);
+    const order = await Order.findByPk(req.params.id, { include: [{ model: User, as: 'user' }] });
     if (!order) return error(res, 'Order not found', 404);
     await order.update({ status: req.body.status, trackingNumber: req.body.trackingNumber, ...(req.body.status === 'delivered' && { deliveredAt: new Date() }) });
     await Notification.create({ userId: order.userId, title: 'Order Updated', message: `Your order #${order.orderNumber} is now ${req.body.status}`, type: 'order', link: `/orders/${order.id}` });
+    if (order.user?.phone) sendOrderStatus(order.user.phone, order.user.name, order.orderNumber, req.body.status, req.body.trackingNumber);
     return success(res, order, 'Order status updated');
   } catch (err) { return error(res, err.message); }
 };
@@ -138,6 +141,8 @@ exports.verifyPayment = async (req, res) => {
     const order = await Order.findOne({ where: { id: orderId, userId: req.user.id } });
     if (!order) return error(res, 'Order not found', 404);
     await order.update({ paymentStatus: 'paid', paymentId: razorpayPaymentId, status: 'confirmed' });
+    const user = await User.findByPk(order.userId);
+    if (user?.phone) sendPaymentConfirmed(user.phone, user.name, order.orderNumber, order.total);
     return success(res, null, 'Payment verified successfully');
   } catch (err) { return error(res, err.message); }
 };

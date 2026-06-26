@@ -80,5 +80,7 @@ router.put('/notifications/:id/read', authenticate, misc.markNotificationRead);
 router.get('/admin/dashboard', authenticate, authorize('ADMIN'), misc.getDashboardStats);
 router.get('/admin/users', authenticate, authorize('ADMIN'), misc.getUsers);
 router.put('/admin/users/:id/status', authenticate, authorize('ADMIN'), misc.updateUserStatus);
+router.post('/admin/whatsapp/broadcast', authenticate, authorize('ADMIN'), misc.sendWhatsappBroadcast);
+router.get('/admin/whatsapp/broadcast-types', authenticate, authorize('ADMIN'), misc.getBroadcastTypes);
 
 module.exports = router;

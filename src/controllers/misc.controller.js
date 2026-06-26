@@ -232,3 +232,79 @@ exports.markNotificationRead = async (req, res) => {
     return success(res, null, 'Notifications marked as read');
   } catch (err) { return error(res, err.message); }
 };
+
+// Admin - WhatsApp Broadcast
+// Broadcast types: define which vars come from user data vs admin input
+// adminFields: fields admin fills in UI, in order they appear in the template after user-specific vars
+// buildBodyValues(user, adminFields): returns the full bodyValues array for this user
+const BROADCAST_TYPES = {
+  followup_regarding_case: {
+    label: 'Followup Regarding Case',
+    templateName: 'Followup Regarding Case',
+    adminFields: [
+      { key: 'date', label: 'Interaction Date', placeholder: 'e.g. 25 June 2026' },
+      { key: 'update', label: 'Case Update', placeholder: 'e.g. Your order has been shipped' },
+    ],
+    // {{1}} = name (auto), {{2}} = date (admin), {{3}} = update (admin)
+    buildBodyValues: (user, fields) => [user.name, fields.date, fields.update],
+  },
+  flash_sale: {
+    label: 'Flash Sale',
+    templateName: 'flash_sale',
+    adminFields: [
+      { key: 'discount', label: 'Discount', placeholder: 'e.g. 50%' },
+      { key: 'expiry', label: 'Valid Till', placeholder: 'e.g. 30 June 2026' },
+    ],
+    // {{1}} = name (auto), {{2}} = discount (admin), {{3}} = expiry (admin)
+    buildBodyValues: (user, fields) => [user.name, fields.discount, fields.expiry],
+  },
+  festive_offer: {
+    label: 'Festive Offer',
+    templateName: 'festive_offer',
+    adminFields: [
+      { key: 'couponCode', label: 'Coupon Code', placeholder: 'e.g. FEST50' },
+      { key: 'discount', label: 'Discount', placeholder: 'e.g. 50%' },
+      { key: 'expiry', label: 'Valid Till', placeholder: 'e.g. 30 June 2026' },
+    ],
+    buildBodyValues: (user, fields) => [user.name, fields.couponCode, fields.discount, fields.expiry],
+  },
+  repair_reminder: {
+    label: 'Repair Reminder',
+    templateName: 'repair_reminder',
+    adminFields: [
+      { key: 'estimatedDate', label: 'Estimated Completion', placeholder: 'e.g. 28 June 2026' },
+    ],
+    buildBodyValues: (user, fields) => [user.name, fields.estimatedDate],
+  },
+};
+
+exports.getBroadcastTypes = (req, res) => {
+  const types = Object.entries(BROADCAST_TYPES).map(([key, val]) => ({
+    key,
+    label: val.label,
+    adminFields: val.adminFields,
+  }));
+  return success(res, types);
+};
+
+exports.sendWhatsappBroadcast = async (req, res) => {
+  try {
+    const { broadcastType, fields = {} } = req.body;
+    if (!broadcastType) return error(res, 'broadcastType is required', 400);
+    const type = BROADCAST_TYPES[broadcastType];
+    if (!type) return error(res, 'Invalid broadcastType', 400);
+    // Validate all admin fields are provided
+    const missing = type.adminFields.filter(f => !fields[f.key]?.trim());
+    if (missing.length) return error(res, `Missing fields: ${missing.map(f => f.label).join(', ')}`, 400);
+    const { sendBroadcast } = require('../utils/whatsapp');
+    const users = await User.findAll({
+      where: { role: 'CUSTOMER', status: 'active' },
+      attributes: ['id', 'name', 'phone'],
+    });
+    const withPhone = users.filter(u => u.phone);
+    await Promise.all(withPhone.map(u =>
+      sendBroadcast(u.phone, type.templateName, type.buildBodyValues(u, fields))
+    ));
+    return success(res, { sent: withPhone.length, skipped: users.length - withPhone.length }, `Broadcast sent to ${withPhone.length} users`);
+  } catch (err) { return error(res, err.message); }
+};
