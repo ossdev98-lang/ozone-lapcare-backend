@@ -6,8 +6,10 @@ const { uploadToLocal, deleteFromLocal } = require('../middlewares/upload');
 
 exports.getProducts = async (req, res) => {
   try {
-    const { page = 1, limit = 12, category, brand, minPrice, maxPrice, condition, search, sort = 'createdAt', order = 'DESC', isFeatured, isFlashSale } = req.query;
-    const where = { status: 'active' };
+    const { page = 1, limit = 12, category, brand, minPrice, maxPrice, condition, search, sort = 'createdAt', order = 'DESC', isFeatured, isFlashSale, status } = req.query;
+    const where = {};
+    if (status) where.status = status;
+    else where.status = 'active';
     if (category) where.categoryId = category;
     if (brand) where.brandId = brand;
     if (condition) where.condition = condition;
@@ -20,7 +22,8 @@ exports.getProducts = async (req, res) => {
       include: [
         { model: Category, as: 'category', attributes: ['id', 'name', 'slug'] },
         { model: Brand, as: 'brand', attributes: ['id', 'name', 'logo'] },
-        { model: ProductImage, as: 'images', where: { isPrimary: true }, required: false, limit: 1 },
+        { model: ProductImage, as: 'images', attributes: ['id', 'url', 'isPrimary', 'sortOrder'], required: false },
+        { model: ProductSpecification, as: 'specifications', attributes: ['id', 'key', 'value'], required: false },
       ],
       order: [[sort, order]],
       limit: parseInt(limit),
@@ -72,8 +75,29 @@ exports.updateProduct = async (req, res) => {
     const product = await Product.findByPk(req.params.id);
     if (!product) return error(res, 'Product not found', 404);
     if (req.body.name) req.body.slug = slugify(req.body.name);
+    
+    // Handle specifications separately
+    const specifications = req.body.specifications || [];
+    delete req.body.specifications;
+    
     await product.update(req.body);
-    return success(res, product, 'Product updated');
+    
+    // Sync specifications
+    if (specifications.length >= 0) {
+      await ProductSpecification.destroy({ where: { productId: product.id } });
+      if (specifications.length > 0) {
+        await ProductSpecification.bulkCreate(
+          specifications.map(s => ({ ...s, productId: product.id }))
+        );
+      }
+    }
+    
+    const updated = await Product.findOne({
+      where: { id: product.id },
+      include: [{ model: ProductSpecification, as: 'specifications', attributes: ['id', 'key', 'value'] }]
+    });
+    
+    return success(res, updated, 'Product updated');
   } catch (err) {
     return error(res, err.message);
   }

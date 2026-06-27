@@ -67,10 +67,15 @@ router.delete('/admin/coupons/:id', authenticate, authorize('ADMIN'), misc.delet
 router.get('/repair-services', misc.getRepairServices);
 router.post('/repair-bookings', optionalAuth, misc.createRepairBooking);
 router.get('/repair-bookings/my', authenticate, misc.getMyRepairBookings);
-router.post('/repair-bookings/:id/payment/create-order', authenticate, misc.createRepairPaymentOrder);
-router.post('/repair-bookings/:id/payment/verify', authenticate, misc.verifyRepairPayment);
 router.get('/admin/repair-bookings', authenticate, authorize('ADMIN'), misc.getAllRepairBookings);
 router.put('/admin/repair-bookings/:id', authenticate, authorize('ADMIN'), misc.updateRepairBooking);
+
+// Offers
+router.get('/offers', misc.getOffers);
+router.get('/admin/offers', authenticate, authorize('ADMIN'), misc.getAllOffers);
+router.post('/admin/offers', authenticate, authorize('ADMIN'), misc.createOffer);
+router.put('/admin/offers/:id', authenticate, authorize('ADMIN'), misc.updateOffer);
+router.delete('/admin/offers/:id', authenticate, authorize('ADMIN'), misc.deleteOffer);
 
 // Notifications
 router.get('/notifications', authenticate, misc.getNotifications);

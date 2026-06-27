@@ -1,4 +1,4 @@
-const { Review, Product, Wishlist, Address, Coupon, RepairService, RepairBooking, User, Order, OrderItem } = require('../models');
+const { Review, Product, Wishlist, Address, Coupon, RepairService, RepairBooking, User, Order, OrderItem, Offer } = require('../models');
 const { success, error, paginate } = require('../utils/response');
 const { Op, fn, col, literal } = require('sequelize');
 
@@ -306,5 +306,46 @@ exports.sendWhatsappBroadcast = async (req, res) => {
       sendBroadcast(u.phone, type.templateName, type.buildBodyValues(u, fields))
     ));
     return success(res, { sent: withPhone.length, skipped: users.length - withPhone.length }, `Broadcast sent to ${withPhone.length} users`);
+  } catch (err) { return error(res, err.message); }
+};
+
+// Offers
+exports.getOffers = async (req, res) => {
+  try {
+    const offers = await Offer.findAll({
+      where: { isActive: true },
+      order: [['sortOrder', 'ASC'], ['createdAt', 'DESC']],
+    });
+    return success(res, offers);
+  } catch (err) { return error(res, err.message); }
+};
+
+exports.getAllOffers = async (req, res) => {
+  try {
+    const offers = await Offer.findAll({ order: [['sortOrder', 'ASC'], ['createdAt', 'DESC']] });
+    return success(res, offers);
+  } catch (err) { return error(res, err.message); }
+};
+
+exports.createOffer = async (req, res) => {
+  try {
+    const offer = await Offer.create(req.body);
+    return success(res, offer, 'Offer created', 201);
+  } catch (err) { return error(res, err.message); }
+};
+
+exports.updateOffer = async (req, res) => {
+  try {
+    const offer = await Offer.findByPk(req.params.id);
+    if (!offer) return error(res, 'Offer not found', 404);
+    await offer.update(req.body);
+    return success(res, offer);
+  } catch (err) { return error(res, err.message); }
+};
+
+exports.deleteOffer = async (req, res) => {
+  try {
+    await Offer.destroy({ where: { id: req.params.id } });
+    return success(res, null, 'Offer deleted');
   } catch (err) { return error(res, err.message); }
 };

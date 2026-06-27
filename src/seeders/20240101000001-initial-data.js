@@ -60,8 +60,13 @@ module.exports = {
       { id: 8, name: 'OS Installation', description: 'Fresh Windows 10/11 or Linux installation', price: 999, priceType: 'fixed', estimatedDays: 1, isActive: true, icon: 'FiDownload', createdAt: new Date(), updatedAt: new Date() },
     ]);
 
+    // Offers
+    await queryInterface.bulkInsert('Offers', [
+      { id: 1, title: 'Limited offer book your first laptop service at just Rs 99', isActive: true, sortOrder: 0, createdAt: new Date(), updatedAt: new Date() },
+    ]);
+
     // Reset all sequences so next auto-increment works correctly
-    const tables = ['Users', 'Categories', 'Brands', 'Products', 'Coupons', 'RepairServices'];
+    const tables = ['Users', 'Categories', 'Brands', 'Products', 'Coupons', 'RepairServices', 'Offers'];
     for (const table of tables) {
       await queryInterface.sequelize.query(
         `SELECT setval('"${table}_id_seq"', (SELECT MAX(id) FROM "${table}"));`
@@ -70,6 +75,7 @@ module.exports = {
   },
 
   async down(queryInterface) {
+    await queryInterface.bulkDelete('Offers', null, {});
     await queryInterface.bulkDelete('RepairServices', null, {});
     await queryInterface.bulkDelete('Coupons', null, {});
     await queryInterface.bulkDelete('Products', null, {});
