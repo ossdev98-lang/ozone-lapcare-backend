@@ -34,10 +34,19 @@ const sendOrderPlaced = (phone, name, orderNumber, total) =>
   send(phone, 'order_placed', [name, orderNumber, `Rs. ${total}`]);
 
 // Order status update
-const sendOrderStatus = (phone, name, orderNumber, status, trackingNumber = '') => {
-  const values = [name, orderNumber, status];
-  if (trackingNumber) values.push(trackingNumber);
-  return send(phone, 'order_status_update', values);
+const sendOrderStatus = (phone, name, orderNumber, status, trackingNumber = '', total = '') => {
+  const templateName = {
+    confirmed: 'order_confirmed',
+    placed: 'order_placed',
+    shipped: 'order_shipped',
+    delivered: 'order_delivered',
+  }[status] || 'order_placed';
+  const values = templateName === 'order_confirmed' 
+    ? [name, orderNumber, total ? `Rs. ${total}` : ''] 
+    : trackingNumber 
+      ? [name, orderNumber, status, trackingNumber] 
+      : [name, orderNumber, status];
+  return send(phone, templateName, values);
 };
 
 // Payment confirmed

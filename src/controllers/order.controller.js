@@ -127,7 +127,7 @@ exports.updateOrderStatus = async (req, res) => {
     if (!order) return error(res, 'Order not found', 404);
     await order.update({ status: req.body.status, trackingNumber: req.body.trackingNumber, ...(req.body.status === 'delivered' && { deliveredAt: new Date() }) });
     await Notification.create({ userId: order.userId, title: 'Order Updated', message: `Your order #${order.orderNumber} is now ${req.body.status}`, type: 'order', link: `/orders/${order.id}` });
-    if (order.user?.phone) sendOrderStatus(order.user.phone, order.user.name, order.orderNumber, req.body.status, req.body.trackingNumber);
+    if (order.user?.phone) sendOrderStatus(order.user.phone, order.user.name, order.orderNumber, req.body.status, req.body.trackingNumber, order.total);
     return success(res, order, 'Order status updated');
   } catch (err) { return error(res, err.message); }
 };

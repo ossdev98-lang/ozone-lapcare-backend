@@ -4,6 +4,6 @@ const slugify = (text) =>
     .replace(/[^\w\-]+/g, '')
     .replace(/\-\-+/g, '-');
 
-const generateOrderNumber = () => 'OZL-' + Date.now().toString(36).toUpperCase();
+const generateOrderNumber = () => 'OLC-' + Date.now().toString(36).toUpperCase();
 
 module.exports = { slugify, generateOrderNumber };
