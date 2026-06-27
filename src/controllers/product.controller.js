@@ -118,6 +118,9 @@ exports.uploadImages = async (req, res) => {
   try {
     const product = await Product.findByPk(req.params.id);
     if (!product) return error(res, 'Product not found', 404);
+    if (!req.files || req.files.length === 0) {
+      return error(res, 'No images provided - check file input name is "images"', 400);
+    }
     const images = req.files.map(file => ({
       productId: product.id,
       url: uploadToLocal(file, 'products'),
