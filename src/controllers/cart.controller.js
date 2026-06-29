@@ -1,4 +1,4 @@
-const { Cart, CartItem, Product, ProductImage, Coupon } = require('../models');
+const { Cart, CartItem, Product, ProductImage, Coupon, Setting } = require('../models');
 const { success, error } = require('../utils/response');
 const { Op } = require('sequelize');
 
@@ -8,11 +8,11 @@ const getOrCreateCart = async (userId) => {
   return cart;
 };
 
-const calcCartTotals = (items) => {
+const calcCartTotals = (items, freeShippingThreshold = 999, shippingCharge = 99) => {
   const subtotal = items.reduce((sum, i) => sum + parseFloat(i.price) * i.quantity, 0);
   const tax = subtotal * 0.18;
-  const shipping = subtotal > 999 ? 0 : 99;
-  return { subtotal: +subtotal.toFixed(2), tax: +tax.toFixed(2), shipping, total: +(subtotal + tax + shipping).toFixed(2) };
+  const shipping = subtotal >= freeShippingThreshold ? 0 : shippingCharge;
+  return { subtotal: +subtotal.toFixed(2), tax: +tax.toFixed(2), shipping, total: +(subtotal + tax + shipping).toFixed(2), freeShippingThreshold };
 };
 
 const toNumber = (value) => {
@@ -23,7 +23,9 @@ const toNumber = (value) => {
 exports.getCart = async (req, res) => {
   try {
     const cart = await getOrCreateCart(req.user.id);
-    const totals = calcCartTotals(cart.items || []);
+    const freeShippingThreshold = parseFloat((await Setting.findByPk('freeShippingThreshold'))?.value) || 999;
+    const shippingCharge = parseFloat((await Setting.findByPk('shippingCharge'))?.value) || 99;
+    const totals = calcCartTotals(cart.items || [], freeShippingThreshold, shippingCharge);
     return success(res, { ...cart.toJSON(), ...totals });
   } catch (err) { return error(res, err.message); }
 };

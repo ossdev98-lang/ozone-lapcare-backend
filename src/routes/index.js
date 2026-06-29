@@ -3,6 +3,7 @@ const ctrl = require('../controllers/category.controller');
 const misc = require('../controllers/misc.controller');
 const cartCtrl = require('../controllers/cart.controller');
 const orderCtrl = require('../controllers/order.controller');
+const adCtrl = require('../controllers/ad.controller');
 const { authenticate, authorize, optionalAuth } = require('../middlewares/auth');
 const { upload } = require('../middlewares/upload');
 
@@ -87,5 +88,17 @@ router.get('/admin/users', authenticate, authorize('ADMIN'), misc.getUsers);
 router.put('/admin/users/:id/status', authenticate, authorize('ADMIN'), misc.updateUserStatus);
 router.post('/admin/whatsapp/broadcast', authenticate, authorize('ADMIN'), misc.sendWhatsappBroadcast);
 router.get('/admin/whatsapp/broadcast-types', authenticate, authorize('ADMIN'), misc.getBroadcastTypes);
+
+// Ads
+router.get('/ads', adCtrl.getAds);
+router.get('/admin/ads', authenticate, authorize('ADMIN'), adCtrl.getAllAds);
+router.post('/admin/ads', authenticate, authorize('ADMIN'), upload.single('image'), adCtrl.createAd);
+router.put('/admin/ads/:id', authenticate, authorize('ADMIN'), upload.single('image'), adCtrl.updateAd);
+router.delete('/admin/ads/:id', authenticate, authorize('ADMIN'), adCtrl.deleteAd);
+
+// Settings
+router.get('/settings/public', misc.getPublicSettings);
+router.get('/admin/settings', authenticate, authorize('ADMIN'), misc.getSettings);
+router.put('/admin/settings/:key', authenticate, authorize('ADMIN'), misc.updateSetting);
 
 module.exports = router;

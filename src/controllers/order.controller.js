@@ -1,4 +1,4 @@
-const { Order, OrderItem, Cart, CartItem, Product, Address, Coupon, User, Notification } = require('../models');
+const { Order, OrderItem, Cart, CartItem, Product, Address, Coupon, User, Notification, Setting } = require('../models');
 const { success, error, paginate } = require('../utils/response');
 const { generateOrderNumber } = require('../utils/helpers');
 const { sendEmail, emailTemplates } = require('../utils/email');
@@ -23,6 +23,8 @@ exports.createOrder = async (req, res) => {
       if (item.product.stock < item.quantity) { await t.rollback(); return error(res, `${item.product.name} out of stock`, 400); }
     }
     const subtotal = cart.items.reduce((s, i) => s + parseFloat(i.price) * i.quantity, 0);
+    const freeShippingThreshold = parseFloat((await Setting.findByPk('freeShippingThreshold'))?.value) || 999;
+    const shippingChargeValue = parseFloat((await Setting.findByPk('shippingCharge'))?.value) || 99;
     let discount = 0;
     if (cart.coupon) {
       const couponValue = toNumber(cart.coupon.value);
@@ -31,7 +33,7 @@ exports.createOrder = async (req, res) => {
       if (maxDiscount !== null) discount = Math.min(discount, maxDiscount);
     }
     const taxAmount = (subtotal - discount) * 0.18;
-    const shippingCharge = subtotal > 999 ? 0 : 99;
+    const shippingCharge = subtotal >= freeShippingThreshold ? 0 : shippingChargeValue;
     const total = subtotal - discount + taxAmount + shippingCharge;
     const order = await Order.create({
       orderNumber: generateOrderNumber(), userId: req.user.id, addressId, paymentMethod,
@@ -46,8 +48,11 @@ exports.createOrder = async (req, res) => {
       productImage: i.product.thumbnail, price: i.price, quantity: i.quantity, total: +(parseFloat(i.price) * i.quantity).toFixed(2),
     }));
     await OrderItem.bulkCreate(orderItems, { transaction: t });
-    // Update stock
-    for (const item of cart.items) await item.product.decrement('stock', { by: item.quantity, transaction: t });
+    // Update stock and totalSold
+    for (const item of cart.items) {
+      await item.product.decrement('stock', { by: item.quantity, transaction: t });
+      await item.product.increment('totalSold', { by: item.quantity, transaction: t });
+    }
     // Update coupon usage
     if (cart.coupon) await cart.coupon.increment('usedCount', { transaction: t });
     // Clear cart

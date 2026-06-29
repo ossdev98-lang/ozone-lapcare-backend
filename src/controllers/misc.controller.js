@@ -1,6 +1,6 @@
 const { Review, Product, Wishlist, Address, Coupon, RepairService, RepairBooking, User, Order, OrderItem, Offer } = require('../models');
 const { success, error, paginate } = require('../utils/response');
-const { Op, fn, col, literal } = require('sequelize');
+const { Op } = require('sequelize');
 
 // Reviews
 exports.createReview = async (req, res) => {
@@ -177,7 +177,20 @@ exports.getDashboardStats = async (req, res) => {
       Order.findAll({ include: [{ model: User, as: 'user', attributes: ['name', 'email'] }], order: [['createdAt', 'DESC']], limit: 5 }),
       Product.findAll({ order: [['totalSold', 'DESC']], limit: 5, attributes: ['id', 'name', 'totalSold', 'price', 'thumbnail'] }),
     ]);
-    return success(res, { totalRevenue: totalRevenue || 0, totalOrders, totalProducts, totalCustomers, recentOrders, topProducts });
+    const tableName = Order.getTableName()
+    const monthlyRaw = await Order.sequelize.query(`
+      SELECT EXTRACT(YEAR FROM "createdAt") AS year, EXTRACT(MONTH FROM "createdAt") AS month,
+             SUM(total) AS revenue, COUNT(id) AS orders
+      FROM "${tableName}"
+      GROUP BY year, month
+      ORDER BY year ASC, month ASC
+    `, { type: Order.sequelize.QueryTypes.SELECT, raw: true });
+    const monthlyData = monthlyRaw.map(r => ({
+      month: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][(parseInt(r.month) || 1) - 1],
+      revenue: parseFloat(r.revenue) || 0,
+      orders: parseInt(r.orders) || 0
+    }));
+    return success(res, { totalRevenue: totalRevenue || 0, totalOrders, totalProducts, totalCustomers, recentOrders, topProducts, monthlyData });
   } catch (err) { return error(res, err.message); }
 };
 
@@ -347,5 +360,35 @@ exports.deleteOffer = async (req, res) => {
   try {
     await Offer.destroy({ where: { id: req.params.id } });
     return success(res, null, 'Offer deleted');
+  } catch (err) { return error(res, err.message); }
+};
+
+// Settings
+exports.getSettings = async (req, res) => {
+  try {
+    const settings = await Setting.findAll();
+    const map = {};
+    settings.forEach(s => { map[s.key] = s.value; });
+    return success(res, map);
+  } catch (err) { return error(res, err.message); }
+};
+
+exports.getPublicSettings = async (req, res) => {
+  try {
+    const thresholdSetting = await Setting.findByPk('freeShippingThreshold');
+    const chargeSetting = await Setting.findByPk('shippingCharge');
+    return success(res, {
+      freeShippingThreshold: thresholdSetting ? parseFloat(thresholdSetting.value) : 999,
+      shippingCharge: chargeSetting ? parseFloat(chargeSetting.value) : 99
+    });
+  } catch (err) { return error(res, err.message); }
+};
+
+exports.updateSetting = async (req, res) => {
+  try {
+    const { key, value } = req.body;
+    if (!key) return error(res, 'Key is required', 400);
+    const [setting] = await Setting.upsert({ key, value: String(value) });
+    return success(res, setting, 'Setting updated');
   } catch (err) { return error(res, err.message); }
 };
