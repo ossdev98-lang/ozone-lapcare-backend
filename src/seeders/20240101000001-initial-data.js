@@ -65,6 +65,16 @@ module.exports = {
       { id: 1, title: 'Limited offer book your first laptop service at just Rs 99', isActive: true, sortOrder: 0, createdAt: new Date(), updatedAt: new Date() },
     ]);
 
+    // Settings - use individual upserts to handle existing data
+    await queryInterface.sequelize.query(
+      "INSERT INTO \"Settings\" (key, value, \"createdAt\", \"updatedAt\") VALUES ('freeShippingThreshold', '999', NOW(), NOW()) ON CONFLICT (key) DO UPDATE SET value = '999';",
+      { type: queryInterface.sequelize.QueryTypes.RAW }
+    );
+    await queryInterface.sequelize.query(
+      "INSERT INTO \"Settings\" (key, value, \"createdAt\", \"updatedAt\") VALUES ('shippingCharge', '99', NOW(), NOW()) ON CONFLICT (key) DO UPDATE SET value = '99';",
+      { type: queryInterface.sequelize.QueryTypes.RAW }
+    );
+
     // Reset all sequences so next auto-increment works correctly
     const tables = ['Users', 'Categories', 'Brands', 'Products', 'Coupons', 'RepairServices', 'Offers'];
     for (const table of tables) {

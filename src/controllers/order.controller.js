@@ -22,19 +22,30 @@ exports.createOrder = async (req, res) => {
     for (const item of cart.items) {
       if (item.product.stock < item.quantity) { await t.rollback(); return error(res, `${item.product.name} out of stock`, 400); }
     }
-    const subtotal = cart.items.reduce((s, i) => s + parseFloat(i.price) * i.quantity, 0);
-    const freeShippingThreshold = parseFloat((await Setting.findByPk('freeShippingThreshold'))?.value) || 999;
-    const shippingChargeValue = parseFloat((await Setting.findByPk('shippingCharge'))?.value) || 99;
-    let discount = 0;
-    if (cart.coupon) {
-      const couponValue = toNumber(cart.coupon.value);
-      const maxDiscount = cart.coupon.maxDiscount == null ? null : toNumber(cart.coupon.maxDiscount);
-      discount = cart.coupon.type === 'percentage' ? (subtotal * couponValue) / 100 : couponValue;
-      if (maxDiscount !== null) discount = Math.min(discount, maxDiscount);
-    }
-    const taxAmount = (subtotal - discount) * 0.18;
-    const shippingCharge = subtotal >= freeShippingThreshold ? 0 : shippingChargeValue;
-    const total = subtotal - discount + taxAmount + shippingCharge;
+const subtotal = cart.items.reduce((s, i) => s + parseFloat(i.price) * i.quantity, 0);
+     let freeShippingThreshold = 999;
+     let shippingChargeValue = 99;
+     try {
+       const thresholdSetting = await Setting.findByPk('freeShippingThreshold');
+       if (thresholdSetting) freeShippingThreshold = parseFloat(thresholdSetting.value) || 999;
+       const chargeSetting = await Setting.findByPk('shippingCharge');
+       if (chargeSetting) shippingChargeValue = parseFloat(chargeSetting.value) || 99;
+     } catch {}
+     let discount = 0;
+     if (cart.coupon) {
+       const couponValue = toNumber(cart.coupon.value);
+       const maxDiscount = cart.coupon.maxDiscount == null ? null : toNumber(cart.coupon.maxDiscount);
+       discount = cart.coupon.type === 'percentage' ? (subtotal * couponValue) / 100 : couponValue;
+       if (maxDiscount !== null) discount = Math.min(discount, maxDiscount);
+     }
+// Product prices are GST-inclusive (18%), extract GST from total
+      // taxableInclusive = subtotal - discount (already includes GST)
+      const taxableInclusive = subtotal - discount;
+      const baseAmount = taxableInclusive / (1 + 0.18);
+      const taxAmount = taxableInclusive - baseAmount;
+      const shippingCharge = subtotal >= freeShippingThreshold ? 0 : shippingChargeValue;
+      // Total is taxableInclusive (items + GST) + shipping (shippingCharge is separate, not GST-inclusive)
+      const total = taxableInclusive + shippingCharge;
     const order = await Order.create({
       orderNumber: generateOrderNumber(), userId: req.user.id, addressId, paymentMethod,
       status: 'pending', subtotal: +subtotal.toFixed(2), discount: +discount.toFixed(2),

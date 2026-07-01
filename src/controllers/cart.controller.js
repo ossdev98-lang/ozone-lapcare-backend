@@ -8,11 +8,16 @@ const getOrCreateCart = async (userId) => {
   return cart;
 };
 
-const calcCartTotals = (items, freeShippingThreshold = 999, shippingCharge = 99) => {
+const calcCartTotals = (items, freeShippingThreshold = 999, shippingCharge = 99, discount = 0) => {
   const subtotal = items.reduce((sum, i) => sum + parseFloat(i.price) * i.quantity, 0);
-  const tax = subtotal * 0.18;
+  // Product prices are GST-inclusive (18%), extract GST from total
+  const taxableInclusive = subtotal - discount;
+  const baseAmount = taxableInclusive / (1 + 0.18);
+  const tax = taxableInclusive - baseAmount;
   const shipping = subtotal >= freeShippingThreshold ? 0 : shippingCharge;
-  return { subtotal: +subtotal.toFixed(2), tax: +tax.toFixed(2), shipping, total: +(subtotal + tax + shipping).toFixed(2), freeShippingThreshold };
+  // Total is taxableInclusive (items + GST after discount) + shipping
+  const total = taxableInclusive + shipping;
+  return { subtotal: +subtotal.toFixed(2), tax: +tax.toFixed(2), shipping, total: +total.toFixed(2), freeShippingThreshold, discount };
 };
 
 const toNumber = (value) => {
@@ -23,9 +28,25 @@ const toNumber = (value) => {
 exports.getCart = async (req, res) => {
   try {
     const cart = await getOrCreateCart(req.user.id);
-    const freeShippingThreshold = parseFloat((await Setting.findByPk('freeShippingThreshold'))?.value) || 999;
-    const shippingCharge = parseFloat((await Setting.findByPk('shippingCharge'))?.value) || 99;
-    const totals = calcCartTotals(cart.items || [], freeShippingThreshold, shippingCharge);
+    let freeShippingThreshold = 999;
+    let shippingCharge = 99;
+    let discount = 0;
+    try {
+      const thresholdSetting = await Setting.findByPk('freeShippingThreshold');
+      if (thresholdSetting) freeShippingThreshold = parseFloat(thresholdSetting.value) || 999;
+      const chargeSetting = await Setting.findByPk('shippingCharge');
+      if (chargeSetting) shippingCharge = parseFloat(chargeSetting.value) || 99;
+    } catch {}
+    if (cart.couponId) {
+      const coupon = await Coupon.findByPk(cart.couponId);
+      if (coupon) {
+        const couponValue = toNumber(coupon.value);
+        const maxDiscount = coupon.maxDiscount == null ? null : toNumber(coupon.maxDiscount);
+        discount = coupon.type === 'percentage' ? (cart.items.reduce((s, i) => s + parseFloat(i.price) * i.quantity, 0) * couponValue) / 100 : couponValue;
+        if (maxDiscount !== null) discount = Math.min(discount, maxDiscount);
+      }
+    }
+    const totals = calcCartTotals(cart.items || [], freeShippingThreshold, shippingCharge, discount);
     return success(res, { ...cart.toJSON(), ...totals });
   } catch (err) { return error(res, err.message); }
 };

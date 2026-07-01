@@ -1,4 +1,4 @@
-const { Review, Product, Wishlist, Address, Coupon, RepairService, RepairBooking, User, Order, OrderItem, Offer } = require('../models');
+const { Review, Product, Wishlist, Address, Coupon, RepairService, RepairBooking, User, Order, OrderItem, Offer, Setting } = require('../models');
 const { success, error, paginate } = require('../utils/response');
 const { Op } = require('sequelize');
 
@@ -386,7 +386,8 @@ exports.getPublicSettings = async (req, res) => {
 
 exports.updateSetting = async (req, res) => {
   try {
-    const { key, value } = req.body;
+    const key = req.params.key;
+    const { value } = req.body;
     if (!key) return error(res, 'Key is required', 400);
     const [setting] = await Setting.upsert({ key, value: String(value) });
     return success(res, setting, 'Setting updated');
